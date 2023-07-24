@@ -1,39 +1,46 @@
-from flask import Flask, request, jsonify
 import requests
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-@app.route('/get-companies-by-job', methods=['GET'])
-def get_companies_by_job():
-    job_title = request.args.get('jobTitle')
+NOTION_KEY = 'secret_PEaWTQb12wSvcDdVKnSuNeufcHFIS6Ltod1bUs1JpRf'
+NOTION_RESUME_DATABASE_ID = 'f922d1a720d0472ebfa56c2e25154e01'
+NOTION_BASE_URL = 'https://api.notion.com/v1/databases/{}/query'.format(NOTION_RESUME_DATABASE_ID)
+HEADERS = {
+    'Authorization': 'Bearer {}'.format(NOTION_KEY),
+    'Content-Type': 'application/json',
+    'Notion-Version': '2021-08-16',
+}
+@app.route('/')
+def home():
+    return "Welcome to the home page!"
 
-    if job_title:
-                integration_token = 'secret_PEaWTQb12wSvcDdVKnSuNeufcHFIS6Ltod1bUs1JpRf'
 
-        # Replace this with the URL to your Notion database
-        database_url = 'https://www.notion.so/Consultancy-Database-f922d1a720d0472ebfa56c2e25154e01'
+@app.route('/company', methods=['GET'])
+def get_companies_by_title():
+    title = request.args.get('title')
+    if not title:
+        return jsonify({'error': 'Company title is required.'}), 400
 
-        headers = {
-            'Authorization': f'Bearer {integration_token}',
-            'Content-Type': 'application/json',
+    # Make a request to the Notion API to fetch data from the database
+    response = requests.post(NOTION_BASE_URL, headers=HEADERS, json={
+        "filter": {
+            "property": "Title",
+            "text": {
+                "contains": title
+            }
         }
+    })
 
-        params = {
-            'jobTitle': job_title,
-        }
-
-        response = requests.get(database_url, headers=headers, params=params)
-
-        if response.status_code == 200:
-            data = response.json()
-            # Process the data from the response
-            companies = data['companies']
-            return jsonify({"companies": companies}), 200
-        else:
-            return jsonify({"message": "Error fetching data from Notion."}), response.status_code
-
+    # Process the response data and return filtered companies
+    if response.status_code == 200:
+        data = response.json()
+        filtered_companies = [company['properties'] for company in data['results']]
+        return jsonify(filtered_companies)
     else:
-        return jsonify({"message": "Please provide a job title in the query parameters."}), 400
+        return jsonify({'error': 'Failed to fetch data from Notion database.'}), 500
+
+# ... Other routes and functions ...
 
 if __name__ == '__main__':
     app.run(debug=True)
